@@ -43,9 +43,9 @@ elif [ "$release" -eq 9 ]; then
     software="nginx apache2 apache2-utils apache2-suexec-custom
         libapache2-mod-ruid2 libapache2-mod-fcgid libapache2-mod-php$fpm_v 
         php$fpm_v php$fpm_v-common php$fpm_v-cgi php$fpm_v-mysql php$fpm_v-curl
-        php$fpm_v-pgsql php$fpm_v-imap php$fpm_v-ldap php$fpm_v-apcu awstats
-        php$fpm_v-zip php$fpm_v-bz2 php$fpm_v-cli php$fpm_v-common php$fpm_v-gd
-        php$fpm_v-intl php$fpm_v-json php$fpm_v-zip php$fpm_v-mbstring
+        php$fpm_v-pgsql php$fpm_v-imagick php$fpm_v-imap php$fpm_v-ldap php$fpm_v-apcu awstats
+        php$fpm_v-zip php$fpm_v-bz2 php$fpm_v-cli php$fpm_v-gd
+        php$fpm_v-intl php$fpm_v-json php$fpm_v-mbstring
         php$fpm_v-opcache php$fpm_v-pspell php$fpm_v-readline php$fpm_v-xml
         vsftpd proftpd-basic bind9 exim4 exim4-daemon-heavy clamav-daemon
         spamassassin dovecot-imapd dovecot-pop3d roundcube-core net-tools
@@ -595,28 +595,18 @@ echo "Adding required repositories to proceed with installation:"
 echo
 # Installing nginx repo
 echo "(*) NGINX"
-if [ -e $apt/nginx.list ]; then
-    rm $apt/nginx.list
-fi
-echo "deb [arch=amd64] http://nginx.org/packages/mainline/$VERSION/ $codename nginx" \
-    > $apt/nginx.list
+echo "deb [arch=amd64] http://nginx.org/packages/mainline/$VERSION/ $codename nginx" > $apt/nginx.list
 wget --quiet http://nginx.org/keys/nginx_signing.key -O /tmp/nginx_signing.key
 APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/nginx_signing.key > /dev/null 2>&1
 
 # Installing sury php repo
 echo "(*) PHP"
-if [ -e $apt/php.list ]; then
-    rm $apt/php.list
-fi
 echo "deb https://packages.sury.org/php/ $codename main" > $apt/php.list
 wget --quiet https://packages.sury.org/php/apt.gpg -O /tmp/php_signing.key
 APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/php_signing.key > /dev/null 2>&1
 
 # Installing MariaDB repo
 echo "(*) MariaDB"
-if [ -e $apt/mariadb.list ]; then
-    rm $apt/mariadb.list
-fi
 echo "deb [arch=amd64] http://ams2.mirrors.digitalocean.com/mariadb/repo/10.4/$VERSION $codename main" > $apt/mariadb.list
 if [ "$release" -eq 8 ]; then
     APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key adv --recv-keys --keyserver keyserver.ubuntu.com CBCB082A1BB943DB > /dev/null 2>&1
@@ -631,12 +621,21 @@ fi
 
 # Installing hestia repo
 echo "(*) Hestia Control Panel"
-if [ -e $apt/hestia.list ]; then
-    rm $apt/hestia.list
-fi
 echo "deb https://$RHOST/ $codename main" > $apt/hestia.list
 wget --quiet https://gpg.hestiacp.com/deb_signing.key -O /tmp/deb_signing.key
 APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/deb_signing.key > /dev/null 2>&1
+rm /tmp/deb_signing.key
+
+# Installing postgresql repo
+if [ "$postgresql" = 'yes' ]; then
+    echo "(*) PostgreSQL"
+    echo "deb http://apt.postgresql.org/pub/repos/apt/ $codename-pgdg main" > $apt/postgresql.list
+    wget --quiet https://www.postgresql.org/media/keys/ACCC4CF8.asc -O /tmp/psql_signing.key
+    APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/psql_signing.key > /dev/null 2>&1
+    rm /tmp/psql_signing.key
+fi
+
+# Echo for a new line
 echo
 
 # Updating system
@@ -757,7 +756,7 @@ if [ "$apache" = 'no' ]; then
     software=$(echo "$software" | sed -e "s/libapache2-mod-ruid2//")
     software=$(echo "$software" | sed -e "s/libapache2-mod-rpaf//")
     software=$(echo "$software" | sed -e "s/libapache2-mod-fcgid//")
-    software=$(echo "$software" | sed -e "s/libapache2-mod-php//")
+    software=$(echo "$software" | sed -e "s/libapache2-mod-php$fpm_v//")
 fi
 if [ "$vsftpd" = 'no' ]; then
     software=$(echo "$software" | sed -e "s/vsftpd//")
@@ -798,27 +797,19 @@ if [ "$mysql" = 'no' ]; then
     software=$(echo "$software" | sed -e "s/mariadb-client//")
     software=$(echo "$software" | sed -e "s/mariadb-common//")
     software=$(echo "$software" | sed -e "s/php$fpm_v-mysql//")
-    if [ "$multiphp" = 'yes' ]; then
-        for v in "${multiphp_v[@]}"; do
-            software=$(echo "$software" | sed -e "s/php$v-mysql//")
-            software=$(echo "$software" | sed -e "s/php$v-bz2//")
-        done
-    fi
     software=$(echo "$software" | sed -e "s/phpmyadmin//")
 fi
 if [ "$postgresql" = 'no' ]; then
     software=$(echo "$software" | sed -e "s/postgresql-contrib//")
     software=$(echo "$software" | sed -e "s/postgresql//")
     software=$(echo "$software" | sed -e "s/php$fpm_v-pgsql//")
-    if [ "$multiphp" = 'yes' ]; then
-        for v in "${multiphp_v[@]}"; do
-            software=$(echo "$software" | sed -e "s/php$v-pgsql//")
-        done
-    fi
     software=$(echo "$software" | sed -e "s/phppgadmin//")
 fi
 if [ "$iptables" = 'no' ] || [ "$fail2ban" = 'no' ]; then
     software=$(echo "$software" | sed -e "s/fail2ban//")
+fi
+if [ "$phpfpm" = 'yes' ]; then
+    software=$(echo "$software" | sed -e "s/php$fpm_v-cgi//")
 fi
 if [ -d "$withdebs" ]; then
     software=$(echo "$software" | sed -e "s/hestia-nginx//")
@@ -1386,7 +1377,7 @@ if [ "$named" = 'yes' ]; then
     check_result $? "bind9 start failed"
 
     # Workaround for OpenVZ/Virtuozzo
-    if [ -e "/proc/vz/veinfo" ]; then
+    if [ -e "/proc/vz/veinfo" ] && [ -e "/etc/rc.local" ]; then
         sed -i "s/^exit 0/service bind9 restart\nexit 0/" /etc/rc.local
     fi
 fi

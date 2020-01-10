@@ -33,10 +33,10 @@ software="apache2 apache2.2-common apache2-suexec-custom apache2-utils
     exim4-daemon-heavy expect fail2ban flex ftp git idn imagemagick
     libapache2-mod-fcgid libapache2-mod-php$fpm_v libapache2-mod-rpaf
     libapache2-mod-ruid2 lsof mc mariadb-client mariadb-common mariadb-server
-    nginx  ntpdate php$fpm_v php$fpm_v-cgi php$fpm_v-common php$fpm_v-curl
-    phpmyadmin php$fpm_v-mysql php$fpm_v-imap php$fpm_v-ldap php$fpm_v-apcu 
+    nginx ntpdate php$fpm_v php$fpm_v-cgi php$fpm_v-common php$fpm_v-curl
+    phpmyadmin php$fpm_v-mysql php$fpm_v-imap php$fpm_v-ldap php$fpm_v-apcu
     phppgadmin php$fpm_v-pgsql php$fpm_v-zip php$fpm_v-bz2 php$fpm_v-cli
-    php$fpm_v-common php$fpm_v-gd php$fpm_v-intl php$fpm_v-json php$fpm_v-zip 
+    php$fpm_v-gd php$fpm_v-imagick php$fpm_v-intl php$fpm_v-json
     php$fpm_v-mbstring php$fpm_v-opcache php$fpm_v-pspell php$fpm_v-readline
     php$fpm_v-xml postgresql postgresql-contrib proftpd-basic quota
     roundcube-core roundcube-mysql roundcube-plugins rrdtool rssh spamassassin
@@ -577,20 +577,26 @@ LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php > /dev/null 2>&1
 
 # Installing MariaDB repo
 echo "(*) MariaDB"
-if [ -e $apt/mariadb.list ]; then
-    rm $apt/mariadb.list
-fi
 echo "deb [arch=amd64] http://ams2.mirrors.digitalocean.com/mariadb/repo/10.4/$VERSION $codename main" > $apt/mariadb.list
 APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xF1656F24C74CD1D8 > /dev/null 2>&1
 
 # Installing hestia repo
 echo "(*) Hestia Control Panel"
-if [ -e $apt/hestia.list ]; then
-    rm $apt/hestia.list
-fi
 echo "deb https://$RHOST/ $codename main" > $apt/hestia.list
 wget --quiet https://gpg.hestiacp.com/deb_signing.key -O /tmp/deb_signing.key
 APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/deb_signing.key > /dev/null 2>&1
+rm /tmp/deb_signing.key
+
+# Installing postgresql repo
+if [ "$postgresql" = 'yes' ]; then
+    echo "(*) PostgreSQL"
+    echo "deb http://apt.postgresql.org/pub/repos/apt/ $codename-pgdg main" > $apt/postgresql.list
+    wget --quiet https://www.postgresql.org/media/keys/ACCC4CF8.asc -O /tmp/psql_signing.key
+    APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/psql_signing.key > /dev/null 2>&1
+    rm /tmp/psql_signing.key
+fi
+
+# Echo for a new line
 echo
 
 # Updating system
@@ -773,6 +779,9 @@ if [ "$postgresql" = 'no' ]; then
 fi
 if [ "$iptables" = 'no' ] || [ "$fail2ban" = 'no' ]; then
     software=$(echo "$software" | sed -e "s/fail2ban//")
+fi
+if [ "$phpfpm" = 'yes' ]; then
+    software=$(echo "$software" | sed -e "s/php$fpm_v-cgi//")
 fi
 if [ -d "$withdebs" ]; then
     software=$(echo "$software" | sed -e "s/hestia-nginx//")
@@ -1345,7 +1354,7 @@ if [ "$named" = 'yes' ]; then
     check_result $? "bind9 start failed"
 
     # Workaround for OpenVZ/Virtuozzo
-    if [ -e "/proc/vz/veinfo" ]; then
+    if [ -e "/proc/vz/veinfo" ] && [ -e "/etc/rc.local" ]; then
         sed -i "s/^exit 0/service bind9 restart\nexit 0/" /etc/rc.local
     fi
 fi

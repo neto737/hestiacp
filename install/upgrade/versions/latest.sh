@@ -114,14 +114,39 @@ if [ -z "$GZIP_LVL_CHECK" ]; then
     $BIN/v-change-sys-config-value "BACKUP_GZIP" '9'
 fi
 
-# Randomize Rouncube des_key for better security
+# Randomize Roundcube des_key for better security
 if [ -f "/etc/roundcube/config.inc.php" ]; then
     rcDesKey="$(openssl rand -base64 30 | tr -d "/" | cut -c1-24)"
     sed -i "s/vtIOjLZo9kffJoqzpSbm5r1r/$rcDesKey/g" /etc/roundcube/config.inc.php
 fi
 
 # Place robots.txt to prevent webmail crawling by search engine bots.
-if [ ! -f "/var/lib/roundcube/robots.txt" ]; then
-    echo "User-agent: *" > /var/lib/roundcube/robots.txt
-    echo "Disallow: /" >> /var/lib/roundcube/robots.txt
+if [ -e "/var/lib/roundcube/" ]; then
+    if [ ! -f "/var/lib/roundcube/robots.txt" ]; then
+        echo "User-agent: *" > /var/lib/roundcube/robots.txt
+        echo "Disallow: /" >> /var/lib/roundcube/robots.txt
+    fi
+fi
+
+# Installing postgresql repo
+if [ -e "/etc/postgresql" ]; then
+    osname="$(cat /etc/os-release | grep "^ID\=" | sed "s/ID\=//g")"
+    if [ "$osname" = "ubuntu" ]; then
+        codename="$(lsb_release -s -c)"
+    else
+        codename="$(cat /etc/os-release |grep VERSION= |cut -f 2 -d \(|cut -f 1 -d \))"
+    fi
+    echo "deb http://apt.postgresql.org/pub/repos/apt/ $codename-pgdg main" > /etc/apt/sources.list.d/postgresql.list
+    wget --quiet https://www.postgresql.org/media/keys/ACCC4CF8.asc -O /tmp/psql_signing.key
+    APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/psql_signing.key > /dev/null 2>&1
+    rm /tmp/psql_signing.key
+fi
+
+# Hardening MySQL configuration, prevent local infile.
+if [ -e "/etc/mysql/my.cnf" ]; then
+    mysql_local_infile_check=$(grep local-infile /etc/mysql/my.cnf)
+    if [ -z "$mysql_local_infile_check" ]; then
+        echo "(*) Hardening MySQL configuration..."
+        sed -i '/symbolic-links\=0/a\local-infile=0' /etc/mysql/my.cnf
+    fi
 fi
