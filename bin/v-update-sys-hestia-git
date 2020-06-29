@@ -90,23 +90,18 @@ if [ ! -z "$1" ]; then
         exit 1
     else
         /usr/local/hestia/bin/v-change-sys-config-value 'RELEASE_BRANCH' "$branch"
-        echo "Changed update release branch to $branch from GitHub repository."
+        echo "Changed release branch to $branch."
     fi
 else
     source /usr/local/hestia/conf/hestia.conf
     branch=$RELEASE_BRANCH
 fi
 
-if [ ! -z "$2" ]; then
-    install=$2
-else
-    install="y"
-fi
-
 if [ -z "$branch" ]; then
     echo "No branch detected, please provide one using: v-update-sys-hestia-git branch"
     exit
 fi
+
 
 # Install needed software
 echo "Updating system APT repositories..."
@@ -115,9 +110,7 @@ echo "Installing dependencies for compilation..."
 apt-get -qq install -y $SOFTWARE > /dev/null 2>&1
 
 # Fix for Debian PHP Envroiment
-if [ ! -e /usr/local/include/curl ]; then
-    ln -s /usr/include/x86_64-linux-gnu/curl /usr/local/include/curl
-fi
+ln -s /usr/include/x86_64-linux-gnu/curl /usr/local/include/curl > /dev/null 2>&1
 
 # Get system cpu cores
 NUM_CPUS=$(grep "^cpu cores" /proc/cpuinfo | uniq |  awk '{print $4}')
@@ -373,13 +366,42 @@ fi
 #
 #################################################################################
 
-if [ "$install" = 'yes' ] || [ "$install" = 'y' ]; then
+# Define package installation functions
+warning_message() {
+    echo ""
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo "WARNING - Development builds should not be installed on"
+    echo "systems with live production data without understanding"
+    echo "the potential risks that are involved!"
+    echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    echo ""
+}
+
+install_build() {
     echo "Installing packages..."
     for i in $DEB_DIR/*.deb; do
         # Install all available packages
         dpkg -i $i
     done
-    unset $answer
     # Remove temporary files
     rm -rf $BUILD_DIR
+}
+
+# Define installation routine
+
+if [ "$install" = "yes" ]; then 
+    install_build
+else
+    warning_message
+    read -p "Do you wish to proceed with the installation? [y/n] " answer
+    if [ "$answer" = 'y' ] || [ "$answer" = 'Y'  ]; then
+        install_build
+        unset $answer
+    else
+        echo "Installation of development build aborted."
+        echo "Removing temporary files..."
+        rm -rf $BUILD_DIR
+        unset $answer
+        echo ""
+    fi
 fi

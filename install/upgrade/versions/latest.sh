@@ -1,152 +1,163 @@
 #!/bin/sh
 
-# Hestia Control Panel upgrade script for target version 1.1.0
+# Hestia Control Panel upgrade script for target version 1.2.0
 
 #######################################################################################
 #######                      Place additional commands below.                   #######
 #######################################################################################
 
-# Set default theme
-if [ -z $THEME ]; then
-    echo "(*) Enabling support for themes..."
-    $BIN/v-change-sys-theme 'default'
-fi
-
-# Reduce SSH login grace time
-if [ -e /etc/ssh/sshd_config ]; then
-    echo "(*) Hardening SSH daemon configuration..."
-    sed -i "s/LoginGraceTime 2m/LoginGraceTime 1m/g" /etc/ssh/sshd_config
-    sed -i "s/#LoginGraceTime 2m/LoginGraceTime 1m/g" /etc/ssh/sshd_config
-fi
-
-# Implement recidive jail for fail2ban
-if [ ! -z "$FIREWALL_EXTENSION" ]; then
-    if ! cat /etc/fail2ban/jail.local | grep -q "\[recidive\]"; then
-        echo -e "\n\n[recidive]\nenabled  = true\nfilter   = recidive\naction   = hestia[name=HESTIA]\nlogpath  = /var/log/fail2ban.log\nmaxretry = 3\nfindtime = 86400\nbantime  = 864000" >> /etc/fail2ban/jail.local
+# Check iptables paths and add symlinks when necessary
+if [ ! -e "/sbin/iptables" ]; then
+    if which iptables; then
+        ln -s "$(which iptables)" /sbin/iptables
+    elif [ -e "/usr/sbin/iptables" ]; then
+        ln -s /usr/sbin/iptables /sbin/iptables
+    elif whereis -B /bin /sbin /usr/bin /usr/sbin -f -b iptables; then
+        autoiptables=$(whereis -B /bin /sbin /usr/bin /usr/sbin -f -b iptables | cut -d '' -f 2)
+        if [ -x "$autoiptables" ]; then
+            ln -s "$autoiptables" /sbin/iptables
+        fi
     fi
 fi
 
-# Enable OCSP SSL stapling and harden nginx configuration for roundcube
-if [ ! -z "$IMAP_SYSTEM" ]; then
-    echo "(*) Hardening security of Roundcube webmail..."
-    $BIN/v-update-mail-templates > /dev/null 2>&1
-    if [ -e /etc/nginx/conf.d/webmail.inc ]; then
-        cp -f /etc/nginx/conf.d/webmail.inc $HESTIA_BACKUP/conf/
-        sed -i "s/config|temp|logs/README.md|config|temp|logs|bin|SQL|INSTALL|LICENSE|CHANGELOG|UPGRADING/g" /etc/nginx/conf.d/webmail.inc
+if [ ! -e "/sbin/iptables-save" ]; then
+    if which iptables-save; then
+        ln -s "$(which iptables-save)" /sbin/iptables-save
+    elif [ -e "/usr/sbin/iptables-save" ]; then
+        ln -s /usr/sbin/iptables-save /sbin/iptables-save
+    elif whereis -B /bin /sbin /usr/bin /usr/sbin -f -b iptables-save; then
+        autoiptables_save=$(whereis -B /bin /sbin /usr/bin /usr/sbin -f -b iptables-save | cut -d '' -f 2)
+        if [ -x "$autoiptables_save" ]; then
+            ln -s "$autoiptables_save" /sbin/iptables-save
+        fi
     fi
 fi
 
-# Fix restart queue
-if [ -z "$($BIN/v-list-cron-jobs admin | grep 'v-update-sys-queue restart')" ]; then
-    command="sudo $BIN/v-update-sys-queue restart"
-    $BIN/v-add-cron-job 'admin' '*/2' '*' '*' '*' '*' "$command"
-fi
-
-# Remove deprecated line from ClamAV configuration file
-if [ -e "/etc/clamav/clamd.conf" ]; then
-    clamd_conf_update_check=$(grep DetectBrokenExecutables /etc/clamav/clamd.conf)
-    if [ ! -z "$clamd_conf_update_check" ]; then
-        echo "(*) Updating ClamAV configuration..."
-        sed -i '/DetectBrokenExecutables/d' /etc/clamav/clamd.conf
+if [ ! -e "/sbin/iptables-restore" ]; then
+    if which iptables-restore; then
+        ln -s "$(which iptables-restore)" /sbin/iptables-restore
+    elif [ -e "/usr/sbin/iptables-restore" ]; then
+        ln -s /usr/sbin/iptables-restore /sbin/iptables-restore
+    elif whereis -B /bin /sbin /usr/bin /usr/sbin -f -b iptables-restore; then
+        autoiptables_restore=$(whereis -B /bin /sbin /usr/bin /usr/sbin -f -b iptables-restore | cut -d '' -f 2)
+        if [ -x "$autoiptables_restore" ]; then
+            ln -s "$autoiptables_restore" /sbin/iptables-restore
+        fi
     fi
 fi
 
-# Remove errornous history.log file created by certain builds due to bug in v-restart-system
-if [ -e $HESTIA/data/users/history.log ]; then
-    rm -f $HESTIA/data/users/history.log
+if [ -e "/etc/apache2/mods-enabled/status.conf" ]; then
+    echo "(*) Hardening Apache2 Server Status Module..."
+    sed -i '/Allow from all/d' /etc/apache2/mods-enabled/status.conf
 fi
 
-# Use exim4 server hostname instead of mail domain and remove hardcoded mail prefix
-if [ ! -z "$MAIL_SYSTEM" ]; then
-    if cat /etc/exim4/exim4.conf.template | grep -q 'helo_data = mail.${sender_address_domain}'; then
-        echo "(*) Updating exim configuration..."
-        sed -i 's/helo_data = mail.${sender_address_domain}/helo_data = ${primary_hostname}/g' /etc/exim4/exim4.conf.template
+# Add sury apache2 repository
+if [ "$WEB_SYSTEM" = "apache2" ] && [ ! -e "/etc/apt/sources.list.d/apache2.list" ]; then
+    echo "(*) Install sury.org Apache2 repository..."
+
+    # Check OS and install related repository
+    if [ -e "/etc/os-release" ]; then
+        type=$(grep "^ID=" /etc/os-release | cut -f 2 -d '=')
+        if [ "$type" = "ubuntu" ]; then
+            codename="$(lsb_release -s -c)"
+            echo "deb http://ppa.launchpad.net/ondrej/apache2/ubuntu $codename main" > /etc/apt/sources.list.d/apache2.list
+        elif [ "$type" = "debian" ]; then
+            codename="$(cat /etc/os-release |grep VERSION= |cut -f 2 -d \(|cut -f 1 -d \))"
+            echo "deb https://packages.sury.org/apache2/ $codename main" > /etc/apt/sources.list.d/apache2.list
+            wget --quiet https://packages.sury.org/apache2/apt.gpg -O /tmp/apache2_signing.key
+            APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/apache2_signing.key > /dev/null 2>&1
+        fi
     fi
 fi
 
-# Members of admin group should be permitted to enter admin folder
-if [ -d /home/admin ]; then
-    setfacl -m "g:admin:r-x" /home/admin
+# Roundcube fixes for PHP 7.4 compatibility
+if [ -d /usr/share/roundcube ]; then
+    echo "(*) Updating Roundcube configuration..."
+    sed -i 's/$identities, "\\n"/"\\n", $identities/g' /usr/share/roundcube/plugins/enigma/lib/enigma_ui.php
+    sed -i 's/(array_keys($post_search), \x27|\x27)/(\x27|\x27, array_keys($post_search))/g' /usr/share/roundcube/program/lib/Roundcube/rcube_contacts.php
+    sed -i 's/implode($name, \x27.\x27)/implode(\x27.\x27, $name)/g' /usr/share/roundcube/program/lib/Roundcube/rcube_db.php
+    sed -i 's/$fields, \x27,\x27/\x27,\x27, $fields/g' /usr/share/roundcube/program/steps/addressbook/search.inc
+    sed -i 's/implode($fields, \x27,\x27)/implode(\x27,\x27, $fields)/g' /usr/share/roundcube/program/steps/addressbook/search.inc
+    sed -i 's/implode($bstyle, \x27; \x27)/implode(\x27; \x27, $bstyle)/g' /usr/share/roundcube/program/steps/mail/sendmail.inc
 fi
 
-# Fix sftp jail cronjob
-if [ -e "/etc/cron.d/hestia-sftp" ]; then
-    if ! cat /etc/cron.d/hestia-sftp | grep -q 'admin'; then
-        echo "@reboot admin /usr/local/hestia/bin/v-add-sys-sftp-jail" > /etc/cron.d/hestia-sftp
+# Enable Roundcube plugins
+if [ -d /usr/share/roundcube ]; then
+    cp -f $HESTIA_INSTALL_DIR/roundcube/plugins/config_newmail_notifier.inc.php /etc/roundcube/plugins/newmail_notifier/config.inc.php
+    cp -f $HESTIA_INSTALL_DIR/roundcube/plugins/config_zipdownload.inc.php /etc/roundcube/plugins/zipdownload/config.inc.php
+    sed -i "s/array('password')/array('password','newmail_notifier','zipdownload')/g" /etc/roundcube/config.inc.php
+fi
+
+# HELO support for multiple domains and IPs
+if [ -e "/etc/exim4/exim4.conf.template" ]; then
+    echo "(*) Updating exim4 configuration..."
+    sed -i 's|helo_data = ${primary_hostname}|helo_data = ${if exists {\/etc\/exim4\/mailhelo.conf}{${lookup{$sender_address_domain}lsearch*{\/etc\/exim4\/mailhelo.conf}{$value}{$primary_hostname}}}{$primary_hostname}}|g' /etc/exim4/exim4.conf.template
+fi
+
+# Add daily midnight cron
+if [ -z "$($BIN/v-list-cron-jobs admin | grep 'v-update-sys-queue daily')" ]; then
+    command="sudo $BIN/v-update-sys-queue daily"
+    $BIN/v-add-cron-job 'admin' '01' '00' '*' '*' '*' "$command"
+fi
+[ ! -f "touch $HESTIA/data/queue/daily.pipe" ] && touch $HESTIA/data/queue/daily.pipe
+
+# Remove existing network-up hooks so they get regenerated when updating the firewall
+# - network hook will also restore ipset config during start-up
+if [ -f "/usr/lib/networkd-dispatcher/routable.d/50-ifup-hooks" ]; then
+    rm "/usr/lib/networkd-dispatcher/routable.d/50-ifup-hooks"
+    $BIN/v-update-firewall
+fi
+if [ -f "/etc/network/if-pre-up.d/iptables" ];then
+    rm "/etc/network/if-pre-up.d/iptables"
+    $BIN/v-update-firewall
+fi
+
+# Add hestia-event.conf, if the server is running apache2
+if [ "$WEB_SYSTEM" = "apache2" ]; then
+    # Cleanup
+    rm --force /etc/apache2/mods-available/hestia-event.conf
+    rm --force /etc/apache2/mods-enabled/hestia-event.conf
+    rm --force /etc/apache2/conf-available/hestia-event.conf
+    rm --force /etc/apache2/conf-enabled/hestia-event.conf
+
+    if [ $(a2query -M) = 'event' ] && [ ! -e "/etc/apache2/conf.d/hestia-event.conf" ]; then
+        cp -f $HESTIA_INSTALL_DIR/apache2/hestia-event.conf /etc/apache2/conf.d/
+    fi
+
+    # Move apache mod_status config to /mods-available and rename it to prevent losing changes on upgrade
+    cp -f $HESTIA_INSTALL_DIR/apache2/status.conf /etc/apache2/mods-available/hestia-status.conf
+    cp -f /etc/apache2/mods-available/status.load /etc/apache2/mods-available/hestia-status.load
+    a2dismod --quiet status > /dev/null 2>&1
+    a2enmod --quiet hestia-status
+    rm --force /etc/apache2/mods-enabled/status.conf # a2dismod will not remove the file if it isn't a symlink
+fi
+
+# Install Filegator FileManager during upgrade
+if [ ! -e "$HESTIA/web/fm/configuration.php" ]; then
+    echo "(*) Installing File Manager..."
+    # Install the FileManager
+    source $HESTIA_INSTALL_DIR/filemanager/install-fm.sh > /dev/null 2>&1
+fi
+
+# Enable nginx module loading
+if [ -f "/etc/nginx/nginx.conf" ]; then
+    if [ ! -d "/etc/nginx/modules-enabled" ]; then
+        mkdir -p "/etc/nginx/modules-enabled"
+    fi
+
+    if ! grep --silent "include /etc/nginx/modules-enabled" /etc/nginx/nginx.conf; then
+        sed -i '/^pid/ a include /etc/nginx/modules-enabled/*.conf;' /etc/nginx/nginx.conf
     fi
 fi
 
-# Create default writeable folders for all users
-echo "(*) Updating default writable folders for all users..."
+# Fix public_(s)html group ownership
+echo "(*) Updating public_(s)html ownership..."
 for user in $($HESTIA/bin/v-list-sys-users plain); do
-    mkdir -p \
-        $HOMEDIR/$user/.config \
-        $HOMEDIR/$user/.local \
-        $HOMEDIR/$user/.composer \
-        $HOMEDIR/$user/.ssh
+    # skip users with missing home folder
+    [[ -d /home/${user}/ ]] || continue
 
-    chown $user:$user \
-        $HOMEDIR/$user/.config \
-        $HOMEDIR/$user/.local \
-        $HOMEDIR/$user/.composer \
-        $HOMEDIR/$user/.ssh
+    # skip users without web domains
+    ls /home/${user}/web/*/public_*html >/dev/null 2>&1 || continue
+
+    chown --silent --no-dereference :www-data /home/$user/web/*/public_*html
 done
-
-# Remove redundant fail2ban jail
-if fail2ban-client status sshd > /dev/null 2>&1 ; then
-    fail2ban-client stop sshd >/dev/null 2>&1
-    if [ -f /etc/fail2ban/jail.d/defaults-debian.conf ]; then
-        mkdir -p $HESTIA_BACKUP/conf/fail2ban/jail.d
-        mv /etc/fail2ban/jail.d/defaults-debian.conf $HESTIA_BACKUP/conf/fail2ban/jail.d/
-    fi
-fi
-
-# Update Office 365/Microsoft 365 DNS template
-if [ -e "$HESTIA/data/templates/dns/office365.tpl" ]; then
-    echo "(*) Updating DNS template for Office 365..."
-    cp -f $HESTIA/install/deb/templates/dns/office365.tpl $HESTIA/data/templates/dns/office365.tpl
-fi
-
-# Ensure that backup compression level is correctly set
-GZIP_LVL_CHECK=$(cat $HESTIA/conf/hestia.conf | grep BACKUP_GZIP)
-if [ -z "$GZIP_LVL_CHECK" ]; then
-    echo "(*) Updating backup compression level variable..."
-    $BIN/v-change-sys-config-value "BACKUP_GZIP" '9'
-fi
-
-# Randomize Roundcube des_key for better security
-if [ -f "/etc/roundcube/config.inc.php" ]; then
-    rcDesKey="$(openssl rand -base64 30 | tr -d "/" | cut -c1-24)"
-    sed -i "s/vtIOjLZo9kffJoqzpSbm5r1r/$rcDesKey/g" /etc/roundcube/config.inc.php
-fi
-
-# Place robots.txt to prevent webmail crawling by search engine bots.
-if [ -e "/var/lib/roundcube/" ]; then
-    if [ ! -f "/var/lib/roundcube/robots.txt" ]; then
-        echo "User-agent: *" > /var/lib/roundcube/robots.txt
-        echo "Disallow: /" >> /var/lib/roundcube/robots.txt
-    fi
-fi
-
-# Installing postgresql repo
-if [ -e "/etc/postgresql" ]; then
-    osname="$(cat /etc/os-release | grep "^ID\=" | sed "s/ID\=//g")"
-    if [ "$osname" = "ubuntu" ]; then
-        codename="$(lsb_release -s -c)"
-    else
-        codename="$(cat /etc/os-release |grep VERSION= |cut -f 2 -d \(|cut -f 1 -d \))"
-    fi
-    echo "deb http://apt.postgresql.org/pub/repos/apt/ $codename-pgdg main" > /etc/apt/sources.list.d/postgresql.list
-    wget --quiet https://www.postgresql.org/media/keys/ACCC4CF8.asc -O /tmp/psql_signing.key
-    APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add /tmp/psql_signing.key > /dev/null 2>&1
-    rm /tmp/psql_signing.key
-fi
-
-# Hardening MySQL configuration, prevent local infile.
-if [ -e "/etc/mysql/my.cnf" ]; then
-    mysql_local_infile_check=$(grep local-infile /etc/mysql/my.cnf)
-    if [ -z "$mysql_local_infile_check" ]; then
-        echo "(*) Hardening MySQL configuration..."
-        sed -i '/symbolic-links\=0/a\local-infile=0' /etc/mysql/my.cnf
-    fi
-fi

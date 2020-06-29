@@ -247,6 +247,32 @@ is_object_valid() {
 }
 
 # Check if a object string with key values pairs has the correct format and load it afterwards
+parse_object_kv_list_non_eval() {
+    local str
+    local objkv obj_key obj_val
+    local OLD_IFS="$IFS"
+
+    str=${@//$'\n'/ }
+    str=${str//\"/\\\"}
+    str=${str//$/\\$}
+    IFS=$'\n'
+
+    # Extract and loop trough each key-value pair. (Regex test: https://regex101.com/r/eiMufk/5)
+    for objkv in $( echo "$str" | perl -n -e "while(/\b([a-zA-Z]+[\w]*)='(.*?)'(\s|\$)/g) {print \$1.'='.\$2 . \"\n\" }" ); do
+
+        if ! [[ "$objkv" =~ ^([[:alnum:]][_[:alnum:]]{0,64}[[:alnum:]])=(\'?[^\']+?\'?)?$ ]]; then
+            check_result $E_INVALID "Invalid key value format [$objkv]"
+        fi
+
+        obj_key=${objkv%%=*}    # strip everything after first  '=' char
+        obj_val=${objkv#*=}     # strip everything before first '=' char
+        declare -g $obj_key="$obj_val"
+
+    done
+    IFS="$OLD_IFS"
+}
+
+# Check if a object string with key values pairs has the correct format and load it afterwards
 parse_object_kv_list() {
     local str
     local objkv
@@ -1072,13 +1098,31 @@ multiphp_count() {
 }
 
 multiphp_versions() {
+    local -a php_versions_list;
+    local php_ver;
     if [ "$(multiphp_count)" -gt 0 ] ; then
-        for php_ver in $(ls /etc/php/); do
+        for php_ver in $(ls -v /etc/php/); do
             [ ! -d "/etc/php/$php_ver/fpm/pool.d/" ] && continue
-            echo -n "$php_ver "
+            php_versions_list+=($php_ver)
         done
-        echo -en '\n'
+        echo "${php_versions_list[@]}"
     fi
+}
+
+multiphp_default_version() {
+    # Get system wide default php version (set by update-alternatives)
+    local sys_phpversion=$(php -r "echo (float)phpversion();")
+
+    # Check if the system php also has php-fpm enabled, otherwise return
+    # the most recent php version which does have it installed.
+    if [ ! -d "/etc/php/$sys_phpversion/fpm/pool.d/" ]; then
+        local all_versions="$(multiphp_versions)"
+        if [ ! -z "$all_versions" ]; then
+            sys_phpversion="${all_versions##*\ }";
+        fi
+    fi
+
+    echo "$sys_phpversion"
 }
 
 # Run arbitrary cli commands with dropped privileges

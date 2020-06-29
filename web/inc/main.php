@@ -4,7 +4,7 @@ session_start();
 
 define('HESTIA_CMD', '/usr/bin/sudo /usr/local/hestia/bin/');
 define('JS_LATEST_UPDATE', '1491697868');
-define('DEFAULT_PHP_VERSION', 'php-7.3');
+define('DEFAULT_PHP_VERSION', "php-" . exec('php -r "echo (float)phpversion();"'));
 
 $i = 0;
 
@@ -28,6 +28,11 @@ if(isset($_SERVER['HTTP_X_FORWARDED'])){
 }
 if(isset($_SERVER['HTTP_FORWARDED'])){
     $user_combined_ip .=  '|'. $_SERVER['HTTP_FORWARDED'];
+}
+if(isset($_SERVER['HTTP_CF_CONNECTING_IP'])){
+    if(!empty($_SERVER['HTTP_CF_CONNECTING_IP'])){
+      $user_combined_ip = $_SERVER['HTTP_CF_CONNECTING_IP'];
+    }
 }
 
 if(!isset($_SESSION['user_combined_ip'])){
@@ -348,10 +353,10 @@ function list_timezones() {
  * Explaination:
  * $_SESSION['DB_SYSTEM'] has 'mysql' value even if MariaDB is installed, so you can't figure out is it really MySQL or it's MariaDB.
  * So, this function will make it clear.
- * 
+ *
  * If MySQL is installed, function will return 'mysql' as a string.
  * If MariaDB is installed, function will return 'mariadb' as a string.
- * 
+ *
  * Hint: if you want to check if PostgreSQL is installed - check value of $_SESSION['DB_SYSTEM']
  *
  * @return string

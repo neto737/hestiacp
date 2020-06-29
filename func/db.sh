@@ -55,7 +55,7 @@ mysql_query() {
 
 mysql_dump() {
     err="/tmp/e.mysql"
-    mysqldump --defaults-file=$mycnf --single-transaction -r $1 $2 2> $err
+    mysqldump --defaults-file=$mycnf --single-transaction --routines -r $1 $2 2> $err
     if [ '0' -ne "$?" ]; then
         rm -rf $tmpdir
         if [ "$notify" != 'no' ]; then
@@ -322,7 +322,7 @@ delete_pgsql_database() {
     psql_connect $HOST
 
     query="REVOKE ALL PRIVILEGES ON DATABASE $database FROM $DBUSER"
-    psql_qyery "$query" > /dev/null
+    psql_query "$query" > /dev/null
 
     query="DROP DATABASE $database"
     psql_query "$query" > /dev/null

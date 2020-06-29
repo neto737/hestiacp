@@ -132,7 +132,7 @@ $LANG['en'] = array(
     'Adding IP address'  => 'Add IP Address',
     'Editing IP Address'  => 'Edit IP Address',
     'Editing Backup Exclusions' => 'Edit Backup Exclusions',
-    'Generating CSR' => 'Generate New Self-Signed SSL Certificate',
+    'Generating CSR' => 'New Self-Signed SSL Certificate',
     'Listing'  => 'Listing',
     'Search Results'  => 'Search Results',
     'Adding Firewall Rule' => 'Add Firewall Rule',
@@ -767,8 +767,86 @@ $LANG['en'] = array(
     'Theme' => 'Appearance',
 
     'Operating System' => 'Operating System',
-    'Please wait while php is installed or removed' => 'Adding or removing PHP versions will take roughly 1 minute for every version which will be modified. Please wait until the process is finished and do not refresh the page.',
-    'Avoid adding web domains on admin account' => 'Due to the increased access rights, we strongly advise against using the admin account for direct hosting of web domains.
-    Always use a separate unprivileged user account instead.',
+    'Please wait while php is installed or removed' => 'Please wait until the process has completed and do not refresh the page.',
+    'Avoid adding web domains on admin account' => 'It is strongly advised to <a href="/add/user/">create a standard user account</a> before adding web domains to the server due to the increased privileges the admin account possesses and potential security risks.',
     
+    //SSH Key
+    'Field SSH_KEY can not be blank.' => 'Field SSH Key must not be blank',
+    'SSH KEY is invalid' => 'SSH key is invalid',
+    'SSH KEY already exists' => 'SSH key already exists',
+    'SSH KEY Added' => 'SSH key has been added',
+    'Add SSH Key' => 'Add SSH key',
+    'SSH KEY' => 'SSH Key',    
+    'DELETE_KEY_CONFIRM' => 'Are you sure you want to delete SSH key %s?',
+    'SSH_ID' => 'SSH ID',
+    'Manage SSH keys' => 'Manage SSH keys',
+ 
+    //Header 
+    'Fm' => 'Files',
+    //PHP Cli
+    'PHP CLI Version' => 'PHP CLI Version',
+
+    //Ipset Firewall rules
+    'Adding Firewall Ipset List' => 'New IP list',
+    'Ip List Name' => 'IP List Name',
+    'Data Source' => 'Data Source',
+    'Ip Version' => 'IP Version',
+    'Autoupdate' => 'Auto Update',
+    'Add IP list' => 'Add IP list',
+    'BLACKLIST' => 'BLACKLIST',
+    'IPVERSE' => 'IPVERSE',
+    'IPSET_CREATED_OK' => 'IP list created successfully',
+    'DELETE_IPSET_CONFIRMATION' => 'Are you sure you want to delete IP list %s',
+    '1 Ipset list' => '1 IP list',
+    '%s Ipset lists' => '%s IP lists',
+    'There are currently no IP lists defined.' => 'There are currently no IP lists defined.',
+    'list ipset' => 'Manage IP lists',
+    
+    //Backup
+    'File Name' => 'File Name',
+    'Size' => 'Size',
+    'Runtime' => 'Runtime',
+    //Logs
+    'Refresh' => 'Refresh',
+    'Time' => 'Time',
+    'Value' => 'Value',
+    
+    //DNS 
+    'default' => 'default',
+    '1 DNS zone' => '1 DNS zone',
+    '%s DNS zones' => '%s DNS zones',
+    'Add Record' => 'Add Record',
+    //user
+    '1 user account' => '1 user account',
+    '%s user accounts' => '%s user accounts',
+    //database
+    '1 SQL database' => '1 SQL database',
+    '%s SQL databases' => '%s SQL databases',
+    //mail
+    '1 mail domain' => '1 mail domain',
+    '%s mail domains' => '%s mail domains',
+    //web
+    '1 web domain' => '1 web domain',
+    '%s web domains' => '%s web domains',
+    
+    //rrd
+    'Bandwidth Usage' => 'Bandwidth Usage',
+    
+    //reset
+    'Forgot Password' => 'Forgot Password',
+    //web
+    'Quick Install App' => 'Quick Install App',
+    //webapp 
+    'version' => 'version',
+    'Setup' => 'Setup',
+    //Server
+    'Restart' => 'Restart',
+    'Mail Server' => 'Mail Server',
+    'Enabled multi PHP versions' => 'Enabled PHP versions',
+    'Service' => 'Service',
+    'Description' => 'Description',
+    
+    //header
+    'Hestia Control Panel' => 'Hestia Control Panel',
+
 );
